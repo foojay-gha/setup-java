@@ -29,7 +29,10 @@ export async function getJava(
         allowRetries: true,
         maxRetries: 3
       });
-      const url = 'https://static.azul.com/zulu/bin/';
+      const ZULU_BASE_URL = 'https://cdn.zulu.org/zulu';
+      const url = version.includes('-ea')
+        ? `${ZULU_BASE_URL}/ea/`
+        : `${ZULU_BASE_URL}/releases/`;
       const response = await http.get(url);
       const statusCode = response.message.statusCode || 0;
       if (statusCode < 200 || statusCode > 299) {
@@ -45,7 +48,7 @@ export async function getJava(
 
       const contents = await response.readBody();
       const refs = contents.match(/<a href.*\">/gi) || [];
-      const downloadInfo = getDownloadInfo(refs, version, javaPackage);
+      const downloadInfo = getDownloadInfo(refs, version, javaPackage, url);
       jdkFile = await tc.downloadTool(downloadInfo.url);
       version = downloadInfo.version;
       compressedFileExtension = IS_WINDOWS ? '.zip' : '.tar.gz';
@@ -181,7 +184,8 @@ async function unzipJavaDownload(
 function getDownloadInfo(
   refs: string[],
   version: string,
-  javaPackage: string
+  javaPackage: string,
+  baseUrl: string
 ): {version: string; url: string} {
   version = normalizeVersion(version);
   let extension = '';
@@ -224,9 +228,7 @@ function getDownloadInfo(
     // If we haven't returned, means we're looking at the correct platform
     let versions = ref.match(pkgRegexp) || [];
     if (versions.length > 1) {
-      throw new Error(
-        `Invalid ref received from https://static.azul.com/zulu/bin/: ${ref}`
-      );
+      throw new Error(`Invalid ref received from ${baseUrl}: ${ref}`);
     }
     if (versions.length == 0) {
       return;
@@ -236,8 +238,7 @@ function getDownloadInfo(
     if (semver.satisfies(refVersion, version)) {
       versionMap.set(
         refVersion,
-        'https://static.azul.com/zulu/bin/' +
-          ref.slice('<a href="'.length, ref.length - '">'.length)
+        `${baseUrl}` + ref.slice('<a href="'.length, ref.length - '">'.length)
       );
     }
   });
@@ -256,7 +257,7 @@ function getDownloadInfo(
 
   if (curUrl == '') {
     throw new Error(
-      `No valid download found for version ${version} and package ${javaPackage}. Check https://static.azul.com/zulu/bin/ for a list of valid versions or download your own jdk file and add the jdkFile argument`
+      `No valid download found for version ${version} and package ${javaPackage}. Check ${baseUrl} for a list of valid versions or download your own jdk file and add the jdkFile argument`
     );
   }
 
