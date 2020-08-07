@@ -75312,10 +75312,10 @@ function getJava(version, arch, jdkFile, javaPackage) {
                     // Cache Java file using @actions/cache
                     try {
                         const cacheId = yield cache.saveCache([jdkFile], repoCacheKey);
-                        core.debug('Java file cached using @actions/cache with key: ' + repoCacheKey);
+                        console.log('Java file cached using @actions/cache with key: ' + repoCacheKey);
                     }
                     catch (ex) {
-                        core.debug('Unable to cache Java file using @actions/cache: ' + ex);
+                        console.log('Unable to cache Java file using @actions/cache: ' + ex);
                     }
                 }
                 version = downloadInfo.version;

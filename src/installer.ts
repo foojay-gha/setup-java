@@ -80,11 +80,11 @@ export async function getJava(
         // Cache Java file using @actions/cache
         try {
           const cacheId = await cache.saveCache([jdkFile], repoCacheKey);
-          core.debug(
+          console.log(
             'Java file cached using @actions/cache with key: ' + repoCacheKey
           );
         } catch (ex) {
-          core.debug('Unable to cache Java file using @actions/cache: ' + ex);
+          console.log('Unable to cache Java file using @actions/cache: ' + ex);
         }
       }
 
