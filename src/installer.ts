@@ -3,10 +3,12 @@ import * as io from '@actions/io';
 import * as exec from '@actions/exec';
 import * as httpm from '@actions/http-client';
 import * as tc from '@actions/tool-cache';
+import * as cache from '@actions/cache';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as semver from 'semver';
 import * as util from './util';
+import {v4 as uuidV4} from 'uuid';
 
 const tempDirectory = util.getTempDir();
 const IS_WINDOWS = util.isWindows();
@@ -17,14 +19,21 @@ export async function getJava(
   jdkFile: string,
   javaPackage: string
 ): Promise<void> {
+  console.log(
+    '---------------------------------------------------------------'
+  );
+  console.log('getJava....');
+
+  // Look for locally stored java file using the package & version passed in by user
   let toolPath = tc.find(javaPackage, version);
 
   if (toolPath) {
-    core.debug(`Tool found in cache ${toolPath}`);
+    core.debug(`Tool found in local cache ${toolPath}`);
   } else {
     let compressedFileExtension = '';
     if (!jdkFile) {
       core.debug('Downloading JDK from Azul');
+      // Get list of available bundles & download urls from Azul
       const http = new httpm.HttpClient('setup-java', undefined, {
         allowRetries: true,
         maxRetries: 3
@@ -43,26 +52,66 @@ export async function getJava(
         throw new Error(message);
       }
 
+      // Parse response to get url for binary download for latest Java matching params
       const contents = await response.readBody();
       const refs = contents.match(/<a href.*\">/gi) || [];
       const downloadInfo = getDownloadInfo(refs, version, javaPackage);
-      jdkFile = await tc.downloadTool(downloadInfo.url);
+
+      console.log('download info: ' + downloadInfo);
+
+      console.log('checking repo cache...');
+      // Check repository cache (@actions/cache) for Java file
+      const repoCacheKey = downloadInfo.url
+        .split('/')
+        .pop()!
+        .replace(/[-.]/g, '_');
+      console.log('url: ' + downloadInfo.url);
+      console.log('key: ' + repoCacheKey);
+      jdkFile = await getJavaFromRepoCache(repoCacheKey);
+
+      console.log('jdkFile: ' + jdkFile);
+
+      if (!jdkFile) {
+        console.log('No file found in repo cache, downloading Java...');
+        // Download Java file
+        jdkFile = await tc.downloadTool(downloadInfo.url);
+
+        console.log('jdkFile: ' + jdkFile);
+        // Cache Java file using @actions/cache
+        try {
+          const cacheId = await cache.saveCache([jdkFile], repoCacheKey);
+          core.debug(
+            'Java file cached using @actions/cache with key: ' + repoCacheKey
+          );
+        } catch (ex) {
+          core.debug('Unable to cache Java file using @actions/cache: ' + ex);
+        }
+      }
+
       version = downloadInfo.version;
       compressedFileExtension = IS_WINDOWS ? '.zip' : '.tar.gz';
     } else {
-      core.debug('Retrieving Jdk from local path');
+      core.debug('Retrieving JDK from jdkFile (local file) parameter');
     }
+
+    // Create directory & unzip file
     compressedFileExtension = compressedFileExtension || getFileEnding(jdkFile);
     let tempDir: string = path.join(
       tempDirectory,
       'temp_' + Math.floor(Math.random() * 2000000000)
     );
+
+    console.log('jdkFile: ' + jdkFile);
+    console.log('tempDir: ' + tempDir);
+
     const jdkDir = await unzipJavaDownload(
       jdkFile,
       compressedFileExtension,
       tempDir
     );
     core.debug(`jdk extracted to ${jdkDir}`);
+
+    // Cache Java file locally
     toolPath = await tc.cacheDir(
       jdkDir,
       javaPackage,
@@ -71,6 +120,7 @@ export async function getJava(
     );
   }
 
+  // Update environment variables & path
   let extendedJavaHome = 'JAVA_HOME_' + version + '_' + arch;
   core.exportVariable(extendedJavaHome, toolPath); //TODO: remove for v2
   // For portability reasons environment variables should only consist of
@@ -289,4 +339,24 @@ function normalizeVersion(version: string): string {
   }
 
   return version;
+}
+
+async function getJavaFromRepoCache(key: string) {
+  console.log('Repo cache key: ' + key);
+  // Create directory
+  const cachePath = path.join(tempDirectory, uuidV4());
+  await io.mkdirP(path.dirname(cachePath));
+
+  console.log('Repo cache path: ' + cachePath);
+
+  try {
+    // Check repository cache for java version
+    const cacheKey = await cache.restoreCache([cachePath], key);
+    console.log('Repo cache restore key: ' + cacheKey);
+    // Return path to java file
+    return cacheKey === undefined ? '' : cachePath;
+  } catch (ex) {
+    core.debug('Error retrieving java from repository cache: ' + ex);
+    return '';
+  }
 }
