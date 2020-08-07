@@ -23,16 +23,20 @@ export async function getJava(
     '---------------------------------------------------------------'
   );
   console.log('getJava....');
-
+  console.log("Checking local cache for Java file");
   // Look for locally stored java file using the package & version passed in by user
   let toolPath = tc.find(javaPackage, version);
 
   if (toolPath) {
     core.debug(`Tool found in local cache ${toolPath}`);
+    console.log("Found java file local cache");
   } else {
+    console.log("No Java file in local cache");
     let compressedFileExtension = '';
     if (!jdkFile) {
       core.debug('Downloading JDK from Azul');
+      console.log("Getting list of available Java downloads from Azul...");
+
       // Get list of available bundles & download urls from Azul
       const http = new httpm.HttpClient('setup-java', undefined, {
         allowRetries: true,
@@ -52,31 +56,34 @@ export async function getJava(
         throw new Error(message);
       }
 
+      console.log("Parsing Azul response for matching Java version...");
+
       // Parse response to get url for binary download for latest Java matching params
       const contents = await response.readBody();
       const refs = contents.match(/<a href.*\">/gi) || [];
       const downloadInfo = getDownloadInfo(refs, version, javaPackage);
 
-      console.log('download info: ' + downloadInfo);
+      console.log('downloadInfo: ');
+      console.log(downloadInfo);
 
-      console.log('checking repo cache...');
+      console.log('Checking repo cache...');
       // Check repository cache (@actions/cache) for Java file
       const repoCacheKey = downloadInfo.url
         .split('/')
         .pop()!
         .replace(/[-.]/g, '_');
-      console.log('url: ' + downloadInfo.url);
       console.log('key: ' + repoCacheKey);
       jdkFile = await getJavaFromRepoCache(repoCacheKey);
 
       console.log('jdkFile: ' + jdkFile);
 
       if (!jdkFile) {
-        console.log('No file found in repo cache, downloading Java...');
+        console.log('No file found in repo cache, downloading Java from Azul...');
         // Download Java file
         jdkFile = await tc.downloadTool(downloadInfo.url);
 
         console.log('jdkFile: ' + jdkFile);
+        console.log("Java file downloaded. Store compressed java file in repo cache...");
         // Cache Java file using @actions/cache
         try {
           const cacheId = await cache.saveCache([jdkFile], repoCacheKey);
@@ -92,6 +99,7 @@ export async function getJava(
       compressedFileExtension = IS_WINDOWS ? '.zip' : '.tar.gz';
     } else {
       core.debug('Retrieving JDK from jdkFile (local file) parameter');
+      console.log("Retrieving JDK from jdkFile (local file) parameter: " + jdkFile);
     }
 
     // Create directory & unzip file
@@ -101,16 +109,16 @@ export async function getJava(
       'temp_' + Math.floor(Math.random() * 2000000000)
     );
 
-    console.log('jdkFile: ' + jdkFile);
-    console.log('tempDir: ' + tempDir);
-
+    console.log("Unzipping Java file...");
     const jdkDir = await unzipJavaDownload(
       jdkFile,
       compressedFileExtension,
       tempDir
     );
     core.debug(`jdk extracted to ${jdkDir}`);
+    console.log(`jdk extracted to ${jdkDir}`);
 
+    console.log("Storing Java in local cache...");
     // Cache Java file locally
     toolPath = await tc.cacheDir(
       jdkDir,
@@ -120,6 +128,7 @@ export async function getJava(
     );
   }
 
+  console.log("Updating environment variables...");
   // Update environment variables & path
   let extendedJavaHome = 'JAVA_HOME_' + version + '_' + arch;
   core.exportVariable(extendedJavaHome, toolPath); //TODO: remove for v2
