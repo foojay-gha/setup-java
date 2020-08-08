@@ -94,6 +94,10 @@ export async function getJava(
         } catch (ex) {
           console.log('Unable to cache Java file using @actions/cache: ' + ex);
         }
+
+        console.log("see if we get a hit after the repo cache save...");
+        const cacheFilePath = await getJavaFromRepoCache(repoCacheKey);
+        console.log('jdkFile: ' + cacheFilePath);
       }
 
       version = downloadInfo.version;

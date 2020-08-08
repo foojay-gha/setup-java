@@ -75324,6 +75324,9 @@ function getJava(version, arch, jdkFile, javaPackage) {
                     catch (ex) {
                         console.log('Unable to cache Java file using @actions/cache: ' + ex);
                     }
+                    console.log("see if we get a hit after the repo cache save...");
+                    const cacheFilePath = yield getJavaFromRepoCache(repoCacheKey);
+                    console.log('jdkFile: ' + cacheFilePath);
                 }
                 version = downloadInfo.version;
                 compressedFileExtension = IS_WINDOWS ? '.zip' : '.tar.gz';
