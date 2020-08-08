@@ -75318,6 +75318,7 @@ function getJava(version, arch, jdkFile, javaPackage) {
                     // Cache Java file using @actions/cache
                     try {
                         const cacheId = yield cache.saveCache([jdkFile], repoCacheKey);
+                        console.log("cacheId: " + cacheId);
                         console.log('Java file cached using @actions/cache with key: ' + repoCacheKey);
                     }
                     catch (ex) {
@@ -75550,7 +75551,7 @@ function getJavaFromRepoCache(key) {
         try {
             // Check repository cache for java version
             const cacheKey = yield cache.restoreCache([cachePath], key);
-            console.log('Repo cache restore key: ' + cacheKey);
+            console.log('Repo cache key: ' + cacheKey);
             // Return path to java file
             return cacheKey === undefined ? '' : cachePath;
         }

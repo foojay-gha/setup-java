@@ -87,6 +87,7 @@ export async function getJava(
         // Cache Java file using @actions/cache
         try {
           const cacheId = await cache.saveCache([jdkFile], repoCacheKey);
+          console.log("cacheId: " + cacheId);
           console.log(
             'Java file cached using @actions/cache with key: ' + repoCacheKey
           );
@@ -361,7 +362,7 @@ async function getJavaFromRepoCache(key: string) {
   try {
     // Check repository cache for java version
     const cacheKey = await cache.restoreCache([cachePath], key);
-    console.log('Repo cache restore key: ' + cacheKey);
+    console.log('Repo cache key: ' + cacheKey);
     // Return path to java file
     return cacheKey === undefined ? '' : cachePath;
   } catch (ex) {
